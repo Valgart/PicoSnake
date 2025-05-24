@@ -1,0 +1,121 @@
+html = '''<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake Spiel</title>
+  <style>
+    body { display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0f0f0;font-family:Arial,sans-serif;}
+    body.dark-mode{background:#222;color:#f0f0f0;}
+    .switch { position:relative; display:inline-block; width:50px; height:24px; }
+    .switch input { opacity:0; width:0; height:0; }
+    .slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#ccc; transition:.4s; border-radius:24px; }
+    .slider:before { position:absolute; content:""; height:18px; width:18px; left:3px; bottom:3px; background:#fff; transition:.4s; border-radius:50%; }
+    input:checked + .slider { background:#666; }
+    input:checked + .slider:before { transform:translateX(26px); }
+    #header { width:400px; display:flex; flex-direction:column; gap:8px; margin-bottom:8px; }
+    .header-row { display:flex; justify-content:space-between; align-items:center; }
+    #container { display:flex; flex-direction:column; align-items:center; }
+    #container.classic-mode canvas { border-color:red !important; }
+    canvas { border:2px solid #333; background:#fff; width:400px; height:400px; }
+    body.dark-mode canvas { border-color:#f0f0f0; background:#444; }
+    #restartBtn { margin-top:8px; padding:8px 16px; font-size:1rem; }
+    #debugBanner { position:absolute; top:0; left:0; width:100%; background:yellow; color:black; padding:4px; font-family:monospace; font-size:0.9rem; text-align:center; z-index:1000; }
+  </style>
+</head>
+<body>
+  <div id="debugBanner">Lade Spiel...</div>
+  <div id="header">
+    <div class="header-row">
+      <div>
+        <span>☀️</span>
+        <label class="switch"><input type="checkbox" id="themeToggle"><span class="slider"></span></label>
+        <span>🌙</span>
+      </div>
+      <div id="score">Punktzahl: 0</div>
+    </div>
+    <div class="header-row">
+      <div>
+        <span id="modeLabel">Modern</span>
+        <label class="switch"><input type="checkbox" id="modeToggle" checked><span class="slider"></span></label>
+      </div>
+      <div id="speed">Geschwindigkeit: 100%</div>
+    </div>
+  </div>
+  <div id="container">
+    <canvas id="gameCanvas" tabindex="0"></canvas>
+    <button id="restartBtn">Neustart</button>
+  </div>
+  <script>
+    const debug = document.getElementById('debugBanner');
+    window.addEventListener('load', function() {
+      debug.innerText = 'Initialisiere...';
+      const body = document.body;
+      const themeToggle = document.getElementById('themeToggle');
+      const modeToggle = document.getElementById('modeToggle');
+      const modeLabel = document.getElementById('modeLabel');
+      const scoreEl = document.getElementById('score');
+      const speedEl = document.getElementById('speed');
+      const container = document.getElementById('container');
+      const canvas = document.getElementById('gameCanvas');
+      canvas.width = 400; canvas.height = 400;
+      const ctx = canvas.getContext('2d');
+
+      let score = 0;
+      const initSpeed = 200;
+      let speed = initSpeed;
+      let intervalId;
+      let modernMode = modeToggle.checked;
+
+      canvas.focus();
+
+      themeToggle.addEventListener('change', function(e) {
+        body.classList.toggle('dark-mode', e.target.checked);
+      });
+      modeToggle.addEventListener('change', function(e) {
+        modernMode = e.target.checked;
+        modeLabel.innerText = modernMode ? 'Modern' : 'Classic';
+        container.classList.toggle('classic-mode', !modernMode);
+      });
+      window.addEventListener('keydown', function(e) {
+        let dir = e.key.replace('Arrow', '');
+        const key = e.key.toLowerCase();
+        if (key === 'w') dir = 'Up';
+        if (key === 's') dir = 'Down';
+        if (key === 'a') dir = 'Left';
+        if (key === 'd') dir = 'Right';
+        snake.changeDirection(dir);
+      });
+
+      const scale = 20;
+      const cols = canvas.width / scale;
+      const rows = canvas.height / scale;
+
+      class Snake {
+        constructor() { this.reset(); }
+        reset() { this.x=0; this.y=0; this.xSpeed=1; this.ySpeed=0; this.tail=[{x:-3,y:0},{x:-2,y:0},{x:-1,y:0}]; }
+        draw() { ctx.fillStyle = body.classList.contains('dark-mode') ? 'cyan':'green'; this.tail.forEach(s=>ctx.fillRect(s.x*20,s.y*20,20,20)); ctx.fillRect(this.x*20,this.y*20,20,20); }
+        update() { this.tail.push({x:this.x,y:this.y}); this.tail.shift(); this.x+=this.xSpeed; this.y+=this.ySpeed; if(modernMode){this.x=(this.x+cols)%cols; this.y=(this.y+rows)%rows;}}  
+        changeDirection(dir){ const opp={Up:'Down',Down:'Up',Left:'Right',Right:'Left'}; const sp={Up:[0,-1],Down:[0,1],Left:[-1,0],Right:[1,0]}; if(!(opp[dir]&&this.xSpeed===sp[opp[dir]][0]&&this.ySpeed===sp[opp[dir]][1])){[this.xSpeed,this.ySpeed]=sp[dir]||[this.xSpeed,this.ySpeed];}}  
+        eat(a){if(this.x===a.x&&this.y===a.y){this.tail.unshift({x:this.x,y:this.y});return true;}return false;}  
+        collision(){ if(!modernMode&&(this.x<0||this.x>=cols||this.y<0||this.y>=rows))return true; return this.tail.slice(1).some(s=>s.x===this.x&&s.y===this.y);}  
+      }
+      class Apple{
+        constructor(){this.pickLocation();}
+        pickLocation(){this.x=Math.floor(Math.random()*cols);this.y=Math.floor(Math.random()*rows);}  
+        draw(){ctx.fillStyle='#e74c3c';ctx.fillRect(this.x*20,this.y*20,20,20);}  
+      }
+      let snake=new Snake(),apple=new Apple();
+
+      function startGame(){clearInterval(intervalId); snake.reset(); apple.pickLocation(); score=0; speed=initSpeed; scoreEl.innerText='Punktzahl: '+score; speedEl.innerText='Geschwindigkeit: '+Math.round(initSpeed/speed*100)+'%'; intervalId=setInterval(gameLoop,speed); debug.style.display='none';}
+
+      function gameLoop(){ ctx.clearRect(0,0,canvas.width,canvas.height); apple.draw(); snake.update(); snake.draw(); if(snake.eat(apple)){score++; scoreEl.innerText='Punktzahl: '+score; apple.pickLocation(); if(score%5===0){themeToggle.checked=!themeToggle.checked; body.classList.toggle('dark-mode');} if(score%10===0){clearInterval(intervalId); speed=Math.max(50,speed*0.9); intervalId=setInterval(gameLoop,speed);} speedEl.innerText='Geschwindigkeit: '+Math.round(initSpeed/speed*100)+'%';} if(snake.collision()){clearInterval(intervalId);} }
+
+      const restartBtn=document.getElementById('restartBtn');
+      restartBtn.addEventListener('click',function(){clearInterval(intervalId); startGame();});
+
+      startGame();
+    });
+  </script>
+</body>
+</html>'
